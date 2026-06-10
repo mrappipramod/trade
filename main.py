@@ -13,7 +13,6 @@ Usage:
 import argparse
 import asyncio
 import logging
-import os
 import sys
 
 from config import cfg
@@ -48,6 +47,18 @@ def parse_args():
     return p.parse_args()
 
 
+async def broadcast_telegram(token: str, chat_ids: list, messages: list):
+    """Send all message chunks to every group/chat."""
+    total_sent = 0
+    for chat_id in chat_ids:
+        log.info(f"Sending to Telegram group: {chat_id}")
+        for msg in messages:
+            success = await send_telegram_message(token, chat_id, msg)
+            if success:
+                total_sent += 1
+    log.info(f"Telegram broadcast complete — {total_sent} message(s) sent to {len(chat_ids)} group(s)")
+
+
 def main():
     args = parse_args()
     cfg.log_status()
@@ -75,27 +86,22 @@ def main():
         log.info("--no-notify flag set. Skipping notifications.")
         return
 
-    # ── Telegram ───────────────────────────────────────────────────────────────
+    # ── Telegram broadcast → all groups ───────────────────────────────────────
     if cfg.telegram_enabled:
         messages = format_telegram(reports, cap_filter=args.cap)
-
-        async def _send_all():
-            for msg in messages:
-                await send_telegram_message(cfg.telegram_token, cfg.telegram_chat_id, msg)
-
-        asyncio.run(_send_all())
+        asyncio.run(broadcast_telegram(cfg.telegram_token, cfg.telegram_chat_ids, messages))
     else:
-        log.warning("Telegram not configured — set TELEGRAM_TOKEN and TELEGRAM_CHAT_ID in .env")
+        log.warning("Telegram not configured — set TELEGRAM_TOKEN and TELEGRAM_CHAT_IDS in .env")
 
     # ── Email ──────────────────────────────────────────────────────────────────
     if cfg.email_enabled:
         html = format_html_email(reports, cap_filter=args.cap)
         send_email(
-            sender      = cfg.email_sender,
-            password    = cfg.email_password,
-            recipient   = cfg.email_recipient,
-            html_body   = html,
-            subject     = f"Trade Screener — {len(reports)} pick(s) | {args.cap.upper()}",
+            sender    = cfg.email_sender,
+            password  = cfg.email_password,
+            recipient = cfg.email_recipient,
+            html_body = html,
+            subject   = f"📈 Trade Screener — {len(reports)} pick(s) | {args.cap.upper()}",
         )
     else:
         log.warning("Email not configured — set EMAIL_SENDER / EMAIL_PASSWORD / EMAIL_RECIPIENT in .env")
