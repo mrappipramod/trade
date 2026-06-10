@@ -2,6 +2,9 @@
 Trade - Indian Stock Market Screener
 Entry point: fetches data, runs analysis, sends notifications.
 """
+import sys
+print("Python executable:", sys.executable)
+print("Arguments:", sys.argv)
 
 import os
 import logging
