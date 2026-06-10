@@ -1,15 +1,23 @@
 """
-Trade - Indian Stock Market Screener
-Entry point: fetches data, runs analysis, sends notifications.
-"""
-import sys
-print("Python executable:", sys.executable)
-print("Arguments:", sys.argv)
+main.py — Trade Screener entry point
 
-import os
+Usage:
+  python main.py                          # scan all caps, all trade types
+  python main.py --cap midcap             # midcap only
+  python main.py --cap largecap --trade swing
+  python main.py --cap smallcap --trade longterm --min-score 65
+  python main.py --cap all --max 200 --workers 6
+"""
+
+import argparse
+import asyncio
 import logging
-from screener.data_fetcher import fetch_all
-from screener.analysis import screen_stocks
+import os
+import sys
+
+from config import cfg
+from screener.screener import run_screener
+from screener.report_builder import format_console, format_telegram, format_html_email
 from screener.notifier import send_telegram, send_email
 
 logging.basicConfig(
@@ -20,44 +28,74 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+def parse_args():
+    p = argparse.ArgumentParser(description="Indian Stock Techno-Fundamental Screener")
+    p.add_argument("--cap",       default="all",   choices=["all","largecap","midcap","smallcap"],
+                   help="Market cap segment to scan")
+    p.add_argument("--trade",     default="all",   choices=["all","longterm","swing","intraday"],
+                   help="Filter by trade type")
+    p.add_argument("--min-score", default=55, type=int,
+                   help="Minimum composite score (0–100)")
+    p.add_argument("--max",       default=100, type=int,
+                   help="Max stocks to scan per segment")
+    p.add_argument("--workers",   default=4,  type=int,
+                   help="Parallel fetch threads")
+    p.add_argument("--no-notify", action="store_true",
+                   help="Print results only, skip notifications")
+    return p.parse_args()
+
+
 def main():
-    log.info("=== Trade Screener Started ===")
+    args = parse_args()
+    cfg.log_status()
 
-    # 1. Fetch data
-    log.info("Fetching stock data...")
-    data = fetch_all()
-    log.info(f"Fetched data for {len(data)} stocks.")
+    log.info(f"Starting scan: cap={args.cap}  trade={args.trade}  "
+             f"min_score={args.min_score}  max={args.max}")
 
-    # 2. Run analysis
-    log.info("Running analysis...")
-    selected = screen_stocks(data)
-    log.info(f"Selected {len(selected)} stocks.")
+    # ── Run screener ───────────────────────────────────────────────────────────
+    reports = run_screener(
+        cap_filter   = args.cap,
+        max_stocks   = args.max,
+        min_score    = args.min_score,
+        trade_filter = args.trade,
+        workers      = args.workers,
+    )
 
-    if not selected:
-        log.info("No stocks matched the criteria today.")
+    if not reports:
+        log.info("No stocks matched the criteria today. Try lowering --min-score.")
+        sys.exit(0)
+
+    # ── Console output ─────────────────────────────────────────────────────────
+    print(format_console(reports))
+
+    if args.no_notify:
+        log.info("--no-notify flag set. Skipping notifications.")
         return
 
-    # 3. Send notifications
-    telegram_token = os.getenv("TELEGRAM_TOKEN")
-    telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    email_sender = os.getenv("EMAIL_SENDER")
-    email_password = os.getenv("EMAIL_PASSWORD")
-    email_recipient = os.getenv("EMAIL_RECIPIENT")
-
-    if telegram_token and telegram_chat_id:
-        log.info("Sending Telegram notification...")
-        import asyncio
-        asyncio.run(send_telegram(telegram_token, telegram_chat_id, selected))
+    # ── Telegram ───────────────────────────────────────────────────────────────
+    if cfg.telegram_enabled:
+        messages = format_telegram(reports, cap_filter=args.cap)
+        async def _send_all():
+            for msg in messages:
+                await send_telegram(cfg.telegram_token, cfg.telegram_chat_id, [], _raw_msg=msg)
+        asyncio.run(_send_all())
     else:
-        log.warning("Telegram credentials not set — skipping.")
+        log.warning("Telegram not configured — set TELEGRAM_TOKEN and TELEGRAM_CHAT_ID in .env")
 
-    if email_sender and email_password and email_recipient:
-        log.info("Sending email notification...")
-        send_email(email_sender, email_password, email_recipient, selected)
+    # ── Email ──────────────────────────────────────────────────────────────────
+    if cfg.email_enabled:
+        html = format_html_email(reports, cap_filter=args.cap)
+        send_email(
+            sender      = cfg.email_sender,
+            password    = cfg.email_password,
+            recipient   = cfg.email_recipient,
+            stocks      = [],           # html path used directly
+            _html_body  = html,
+            cap_filter  = args.cap,
+            total       = len(reports),
+        )
     else:
-        log.warning("Email credentials not set — skipping.")
-
-    log.info("=== Screener Done ===")
+        log.warning("Email not configured — set EMAIL_SENDER / EMAIL_PASSWORD / EMAIL_RECIPIENT in .env")
 
 
 if __name__ == "__main__":
