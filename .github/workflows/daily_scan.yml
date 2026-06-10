@@ -2,28 +2,35 @@ name: Daily Stock Screener
 
 on:
   schedule:
-    # 6:00 AM IST = 00:30 UTC, Mon–Fri (NSE opens 9:15 AM; run pre-market)
-    - cron: "30 0 * * 1-5"
-    # Also run at 3:45 PM IST = 10:15 UTC (post-market close scan)
-    - cron: "15 10 * * 1-5"
-  workflow_dispatch:    # run manually from GitHub Actions tab
+    - cron: "30 0 * * 1-5"   # 6:00 AM IST (pre-market)
+    - cron: "15 10 * * 1-5"  # 3:45 PM IST (post-market close)
+  workflow_dispatch:
     inputs:
       cap:
-        description: "Cap segment"
+        description: "Cap segment (all / largecap / midcap / smallcap)"
         required: false
         default: "all"
         type: choice
-        options: [all, largecap, midcap, smallcap]
+        options:
+          - all
+          - largecap
+          - midcap
+          - smallcap
       trade:
-        description: "Trade type filter"
+        description: "Trade type filter (all / longterm / swing / intraday)"
         required: false
         default: "all"
         type: choice
-        options: [all, longterm, swing, intraday]
+        options:
+          - all
+          - longterm
+          - swing
+          - intraday
       min_score:
         description: "Minimum composite score (0-100)"
         required: false
         default: "55"
+        type: string
 
 jobs:
   scan:
@@ -45,19 +52,22 @@ jobs:
 
       - name: Run screener
         env:
-          TELEGRAM_TOKEN:      ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
-          EMAIL_SENDER:        ${{ secrets.EMAIL_SENDER }}
-          EMAIL_PASSWORD:      ${{ secrets.EMAIL_PASSWORD }}
-          EMAIL_RECIPIENT:     ${{ secrets.EMAIL_RECIPIENT }}
-          TWILIO_ACCOUNT_SID:  ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN:   ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_WHATSAPP_FROM:${{ secrets.TWILIO_WHATSAPP_FROM }}
-          TWILIO_WHATSAPP_TO:  ${{ secrets.TWILIO_WHATSAPP_TO }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_WHATSAPP_FROM: ${{ secrets.TWILIO_WHATSAPP_FROM }}
+          TWILIO_WHATSAPP_TO: ${{ secrets.TWILIO_WHATSAPP_TO }}
+          SCREENER_CAP: ${{ inputs.cap || 'all' }}
+          SCREENER_TRADE: ${{ inputs.trade || 'all' }}
+          SCREENER_MIN_SCORE: ${{ inputs.min_score || '55' }}
         run: |
           python main.py \
-            --cap   ${{ github.event.inputs.cap       || 'all' }} \
-            --trade ${{ github.event.inputs.trade     || 'all' }} \
-            --min-score ${{ github.event.inputs.min_score || '55' }} \
+            --cap "$SCREENER_CAP" \
+            --trade "$SCREENER_TRADE" \
+            --min-score "$SCREENER_MIN_SCORE" \
             --max 150 \
             --workers 5
