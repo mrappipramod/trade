@@ -1,11 +1,844 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Trade Project</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trade Screener</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #080c14;
+      --surface:   #0d1420;
+      --card:      #111827;
+      --border:    #1e2d45;
+      --border2:   #243447;
+      --accent:    #00d4aa;
+      --accent2:   #0ea5e9;
+      --gold:      #f59e0b;
+      --red:       #ef4444;
+      --green:     #22c55e;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --muted2:    #94a3b8;
+      --mono:      'JetBrains Mono', monospace;
+      --sans:      'Inter', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(8,12,20,0.92);
+      backdrop-filter: blur(12px);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+    .logo-dot {
+      width: 8px; height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.6; transform: scale(0.8); }
+    }
+    .market-badge {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted2);
+      border: 1px solid var(--border2);
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    /* ── Layout ── */
+    main { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+    /* ── Section titles ── */
+    .section-label {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+    h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    /* ── Config card ── */
+    .config-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .config-card label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--muted2);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: block;
+      margin-bottom: 0.4rem;
+    }
+    .config-card input[type="text"],
+    .config-card input[type="password"] {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      padding: 0.6rem 0.9rem;
+      border-radius: 7px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .config-card input:focus { border-color: var(--accent); }
+    .config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .config-row { grid-template-columns: 1fr; } }
+    .config-hint {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.35rem;
+    }
+    .token-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      margin-top: 0.5rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--card);
+      border: 1px solid var(--border2);
+    }
+    .token-status.ok  { color: var(--green); border-color: #166534; }
+    .token-status.err { color: var(--red);   border-color: #7f1d1d; }
+
+    /* ── Screener grid ── */
+    .screener-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+    .screener-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .screener-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent 60%, rgba(0,212,170,0.04));
+      pointer-events: none;
+    }
+    .screener-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0,212,170,0.1);
+    }
+    .screener-card.loading { border-color: var(--accent2); opacity: 0.7; cursor: default; }
+    .screener-card.done    { border-color: var(--green); }
+    .screener-card.error   { border-color: var(--red); }
+    .card-icon { font-size: 1.6rem; margin-bottom: 0.6rem; }
+    .card-title {
+      font-weight: 600;
+      font-size: 0.92rem;
+      margin-bottom: 0.25rem;
+      letter-spacing: -0.01em;
+    }
+    .card-desc { font-size: 0.75rem; color: var(--muted2); line-height: 1.5; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 0.75rem; }
+    .tag {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid var(--border2);
+      color: var(--muted2);
+    }
+    .tag.cap-l  { color: #60a5fa; border-color: #1e3a5f; }
+    .tag.cap-m  { color: #fbbf24; border-color: #451a03; }
+    .tag.cap-s  { color: #4ade80; border-color: #052e16; }
+    .tag.trade-lt { color: var(--accent); border-color: #064e3b; }
+    .tag.trade-sw { color: #a78bfa; border-color: #2e1065; }
+    .tag.trade-id { color: #fb923c; border-color: #431407; }
+    .run-btn {
+      margin-top: 1rem;
+      width: 100%;
+      padding: 0.55rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      font-family: var(--sans);
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      letter-spacing: 0.03em;
+    }
+    .run-btn:hover { background: var(--accent); color: #000; }
+    .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 5px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Single stock panel ── */
+    .stock-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+    .stock-input-row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-end;
+    }
+    .stock-input-wrap { flex: 1; }
+    .stock-input-wrap label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--muted2);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: block;
+      margin-bottom: 0.4rem;
+    }
+    #stockSymbol {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.65rem 1rem;
+      border-radius: 7px;
+      outline: none;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      transition: border-color 0.2s;
+    }
+    #stockSymbol:focus { border-color: var(--accent2); }
+    #stockSymbol::placeholder { font-weight: 400; letter-spacing: 0; color: var(--muted); }
+    .analyse-btn {
+      padding: 0.65rem 1.5rem;
+      background: var(--accent2);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.2s;
+      font-family: var(--sans);
+    }
+    .analyse-btn:hover   { opacity: 0.85; }
+    .analyse-btn:disabled{ opacity: 0.4; cursor: not-allowed; }
+
+    /* popular stocks */
+    .quick-stocks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 0.9rem;
+    }
+    .quick-stock {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 3px 9px;
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--muted2);
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .quick-stock:hover { border-color: var(--accent2); color: var(--accent2); }
+
+    /* ── Run log ── */
+    .run-log {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-top: 1.5rem;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      line-height: 1.8;
+      max-height: 260px;
+      overflow-y: auto;
+      display: none;
+    }
+    .run-log.visible { display: block; }
+    .log-line        { color: var(--muted2); }
+    .log-line.info   { color: var(--text); }
+    .log-line.ok     { color: var(--green); }
+    .log-line.warn   { color: var(--gold); }
+    .log-line.err    { color: var(--red); }
+    .log-line.accent { color: var(--accent); }
+
+    /* ── Run history ── */
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    .history-table th {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-table td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted2);
+    }
+    .history-table tr:last-child td { border-bottom: none; }
+    .history-table .sym  { font-family: var(--mono); color: var(--text); font-weight: 600; }
+    .status-pill {
+      font-size: 0.65rem;
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+    .status-pill.ok  { background: #052e16; color: var(--green); }
+    .status-pill.err { background: #450a0a; color: var(--red); }
+    .status-pill.run { background: #0c2a44; color: var(--accent2); }
+    .empty-history { color: var(--muted); font-size: 0.8rem; padding: 1rem 0; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 2rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Divider ── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+
+    /* ── Inline score badge ── */
+    .inline-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+  </style>
 </head>
 <body>
-    <h1>Welcome to ://iamnewuser.com!</h1>
-    <p>My GitHub project is successfully connected.</p>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    Trade Screener
+  </div>
+  <div class="market-badge" id="marketStatus">NSE • Loading…</div>
+</header>
+
+<main>
+
+  <!-- ── GitHub Config ── -->
+  <div class="config-card" id="configCard">
+    <div class="section-label">Setup — one time</div>
+    <h2>Connect to GitHub Actions</h2>
+    <div class="config-row">
+      <div>
+        <label>GitHub Username</label>
+        <input type="text" id="ghUser" placeholder="mrappipramod" autocomplete="off" />
+        <div class="config-hint">Your GitHub username</div>
+      </div>
+      <div>
+        <label>Repository Name</label>
+        <input type="text" id="ghRepo" placeholder="trade" autocomplete="off" />
+        <div class="config-hint">The repo containing your screener</div>
+      </div>
+    </div>
+    <div style="margin-top:1rem;">
+      <label>GitHub Personal Access Token</label>
+      <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+      <div class="config-hint">
+        Generate at <a href="https://github.com/settings/tokens/new?scopes=repo,workflow" target="_blank" style="color:var(--accent2);">github.com/settings/tokens</a>
+        — needs <code style="color:var(--accent)">repo</code> + <code style="color:var(--accent)">workflow</code> scopes. Stored in your browser only, never sent anywhere else.
+      </div>
+      <div id="tokenStatus"></div>
+    </div>
+    <div style="margin-top:1rem; display:flex; gap:0.75rem;">
+      <button class="run-btn" style="width:auto;padding:0.5rem 1.25rem;" onclick="saveConfig()">Save & Verify</button>
+      <button class="run-btn" style="width:auto;padding:0.5rem 1.25rem;border-color:var(--border2);color:var(--muted2);" onclick="clearConfig()">Clear</button>
+    </div>
+  </div>
+
+  <!-- ── Screeners ── -->
+  <div class="section-label">Market Screeners</div>
+  <h2>Run a Screener</h2>
+  <p style="font-size:0.82rem;color:var(--muted2);margin-bottom:1.5rem;">
+    Triggers your GitHub Actions workflow. Results will be sent to your Telegram groups and email.
+  </p>
+
+  <div class="screener-grid" id="screenerGrid">
+
+    <div class="screener-card" data-cap="all" data-trade="all" data-score="55">
+      <div class="card-icon">🔍</div>
+      <div class="card-title">Full Market Scan</div>
+      <div class="card-desc">All caps, all trade types. The complete daily screener.</div>
+      <div class="card-tags">
+        <span class="tag cap-l">Large</span>
+        <span class="tag cap-m">Mid</span>
+        <span class="tag cap-s">Small</span>
+        <span class="tag trade-lt">Long Term</span>
+        <span class="tag trade-sw">Swing</span>
+        <span class="tag trade-id">Intraday</span>
+      </div>
+      <button class="run-btn" onclick="runScreener(this)">▶ Run Full Scan</button>
+    </div>
+
+    <div class="screener-card" data-cap="largecap" data-trade="longterm" data-score="65">
+      <div class="card-icon">🏛️</div>
+      <div class="card-title">Large Cap — Long Term</div>
+      <div class="card-desc">Blue-chip stocks suitable for 6–18 month investment horizon.</div>
+      <div class="card-tags">
+        <span class="tag cap-l">Large Cap</span>
+        <span class="tag trade-lt">Long Term</span>
+      </div>
+      <button class="run-btn" onclick="runScreener(this)">▶ Run</button>
+    </div>
+
+    <div class="screener-card" data-cap="midcap" data-trade="swing" data-score="60">
+      <div class="card-icon">🔄</div>
+      <div class="card-title">Mid Cap — Swing Picks</div>
+      <div class="card-desc">Mid cap momentum plays for 3–10 day holds.</div>
+      <div class="card-tags">
+        <span class="tag cap-m">Mid Cap</span>
+        <span class="tag trade-sw">Swing</span>
+      </div>
+      <button class="run-btn" onclick="runScreener(this)">▶ Run</button>
+    </div>
+
+    <div class="screener-card" data-cap="smallcap" data-trade="swing" data-score="60">
+      <div class="card-icon">💎</div>
+      <div class="card-title">Small Cap — Hidden Gems</div>
+      <div class="card-desc">Small cap swing candidates with strong momentum signals.</div>
+      <div class="card-tags">
+        <span class="tag cap-s">Small Cap</span>
+        <span class="tag trade-sw">Swing</span>
+      </div>
+      <button class="run-btn" onclick="runScreener(this)">▶ Run</button>
+    </div>
+
+    <div class="screener-card" data-cap="all" data-trade="intraday" data-score="60">
+      <div class="card-icon">⚡</div>
+      <div class="card-title">Intraday Picks</div>
+      <div class="card-desc">High volume, high momentum stocks for same-day trading.</div>
+      <div class="card-tags">
+        <span class="tag cap-l">Large</span>
+        <span class="tag cap-m">Mid</span>
+        <span class="tag trade-id">Intraday</span>
+      </div>
+      <button class="run-btn" onclick="runScreener(this)">▶ Run</button>
+    </div>
+
+    <div class="screener-card" data-cap="all" data-trade="longterm" data-score="70">
+      <div class="card-icon">📈</div>
+      <div class="card-title">Long Term — Quality Only</div>
+      <div class="card-desc">Strict filter: score ≥70. Only fundamentally strong compounders.</div>
+      <div class="card-tags">
+        <span class="tag cap-l">Large</span>
+        <span class="tag cap-m">Mid</span>
+        <span class="tag cap-s">Small</span>
+        <span class="tag trade-lt">Long Term</span>
+      </div>
+      <button class="run-btn" onclick="runScreener(this)">▶ Run</button>
+    </div>
+
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── Single Stock ── -->
+  <div class="section-label">Individual Analysis</div>
+  <h2>Analyse a Single Stock</h2>
+
+  <div class="stock-panel">
+    <div class="stock-input-row">
+      <div class="stock-input-wrap">
+        <label>NSE Symbol</label>
+        <input type="text" id="stockSymbol" placeholder="e.g. TCS, RELIANCE, HDFCBANK" maxlength="20" />
+      </div>
+      <button class="analyse-btn" id="analyseBtn" onclick="runSingleStock()">Analyse →</button>
+    </div>
+    <div class="quick-stocks" id="quickStocks">
+      <span style="font-size:0.7rem;color:var(--muted);align-self:center;">Popular:</span>
+    </div>
+    <div class="inline-note">Analysis runs on GitHub Actions and results are sent to your Telegram + email.</div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── Run Log ── -->
+  <div class="section-label">Activity</div>
+  <h2>Run History</h2>
+
+  <div id="runLog" class="run-log"></div>
+
+  <div id="historyWrap">
+    <table class="history-table" id="historyTable">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Type</th>
+          <th>Parameters</th>
+          <th>Status</th>
+          <th>Run ID</th>
+        </tr>
+      </thead>
+      <tbody id="historyBody">
+        <tr><td colspan="5"><div class="empty-history">No runs yet. Trigger a screener above.</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<footer>
+  Trade Screener • trade.iamnewuser.com • Data via NSE / yfinance<br/>
+  <span style="margin-top:4px;display:block;">Not financial advice. Do your own research before investing.</span>
+</footer>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────────
+const POPULAR_STOCKS = [
+  "TCS","RELIANCE","HDFCBANK","INFY","ICICIBANK",
+  "TATAMOTORS","SBIN","WIPRO","BAJFINANCE","TITAN",
+  "MARUTI","SUNPHARMA","AXISBANK","LT","ITC"
+];
+
+const WORKFLOW_FILE = "daily_scan.yml";
+
+// ── Config persistence (localStorage) ─────────────────────────────────────────
+function getConfig() {
+  return {
+    user:  localStorage.getItem("gh_user")  || "",
+    repo:  localStorage.getItem("gh_repo")  || "",
+    token: localStorage.getItem("gh_token") || "",
+  };
+}
+
+function saveConfig() {
+  const user  = document.getElementById("ghUser").value.trim();
+  const repo  = document.getElementById("ghRepo").value.trim();
+  const token = document.getElementById("ghToken").value.trim();
+  if (!user || !repo || !token) { return showTokenStatus("Fill all three fields", false); }
+  localStorage.setItem("gh_user",  user);
+  localStorage.setItem("gh_repo",  repo);
+  localStorage.setItem("gh_token", token);
+  verifyToken(user, repo, token);
+}
+
+function clearConfig() {
+  ["gh_user","gh_repo","gh_token"].forEach(k => localStorage.removeItem(k));
+  ["ghUser","ghRepo","ghToken"].forEach(id => document.getElementById(id).value = "");
+  showTokenStatus("", null);
+}
+
+function showTokenStatus(msg, ok) {
+  const el = document.getElementById("tokenStatus");
+  if (!msg) { el.innerHTML = ""; return; }
+  el.innerHTML = `<div class="token-status ${ok ? 'ok' : 'err'}">${ok ? "✓" : "✗"} ${msg}</div>`;
+}
+
+async function verifyToken(user, repo, token) {
+  showTokenStatus("Verifying…", null);
+  try {
+    const r = await ghApi(`/repos/${user}/${repo}`, token);
+    if (r.ok) {
+      showTokenStatus(`Connected — ${user}/${repo}`, true);
+    } else {
+      showTokenStatus(`Error ${r.status}: repo not found or token invalid`, false);
+    }
+  } catch(e) {
+    showTokenStatus("Network error — check console", false);
+  }
+}
+
+// ── GitHub API helper ──────────────────────────────────────────────────────────
+async function ghApi(path, token, method = "GET", body = null) {
+  const opts = {
+    method,
+    headers: {
+      "Authorization": `token ${token}`,
+      "Accept":        "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    }
+  };
+  if (body) { opts.body = JSON.stringify(body); opts.headers["Content-Type"] = "application/json"; }
+  return fetch(`https://api.github.com${path}`, opts);
+}
+
+// ── Trigger workflow ───────────────────────────────────────────────────────────
+async function triggerWorkflow(inputs, label) {
+  const cfg = getConfig();
+  if (!cfg.user || !cfg.repo || !cfg.token) {
+    return addLog("⚠️ Configure GitHub credentials first (top of page)", "warn");
+  }
+
+  addLog(`▶ Triggering: ${label}…`, "accent");
+
+  const body = { ref: "main", inputs };
+  const r = await ghApi(
+    `/repos/${cfg.user}/${cfg.repo}/actions/workflows/${WORKFLOW_FILE}/dispatches`,
+    cfg.token, "POST", body
+  );
+
+  if (r.status === 204) {
+    addLog(`✓ Workflow triggered successfully`, "ok");
+    addLog(`⏳ GitHub Actions is queuing the run — results will arrive on Telegram / email`, "info");
+    // Wait 3s then get the run ID
+    setTimeout(() => fetchLatestRun(cfg, label, inputs), 3500);
+    return true;
+  } else {
+    const err = await r.json().catch(() => ({}));
+    addLog(`✗ Failed (${r.status}): ${err.message || "Unknown error"}`, "err");
+    if (r.status === 401) addLog("  → Check your GitHub token", "warn");
+    if (r.status === 404) addLog("  → Check username / repo name / workflow file name", "warn");
+    if (r.status === 422) addLog("  → Workflow may not be enabled in GitHub Actions tab", "warn");
+    return false;
+  }
+}
+
+async function fetchLatestRun(cfg, label, inputs) {
+  try {
+    const r = await ghApi(
+      `/repos/${cfg.user}/${cfg.repo}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=1`,
+      cfg.token
+    );
+    const data = await r.json();
+    const run  = data.workflow_runs?.[0];
+    if (run) {
+      addLog(`📋 Run #${run.run_number} — <a href="${run.html_url}" target="_blank" style="color:var(--accent2)">${run.html_url}</a>`, "info");
+      addRunToHistory(label, inputs, run);
+    }
+  } catch(e) { /* silent */ }
+}
+
+// ── Screener card handler ──────────────────────────────────────────────────────
+async function runScreener(btn) {
+  const card = btn.closest(".screener-card");
+  const cap   = card.dataset.cap;
+  const trade = card.dataset.trade;
+  const score = card.dataset.score;
+  const title = card.querySelector(".card-title").textContent;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Queuing…';
+  card.classList.add("loading");
+  showLog();
+
+  const ok = await triggerWorkflow(
+    { cap, trade, min_score: score },
+    title
+  );
+
+  btn.disabled = false;
+  btn.innerHTML = ok ? "✓ Queued" : "▶ Retry";
+  card.classList.remove("loading");
+  card.classList.add(ok ? "done" : "error");
+  setTimeout(() => {
+    card.classList.remove("done", "error");
+    btn.innerHTML = "▶ Run";
+  }, 8000);
+}
+
+// ── Single stock handler ───────────────────────────────────────────────────────
+async function runSingleStock() {
+  const input  = document.getElementById("stockSymbol");
+  const btn    = document.getElementById("analyseBtn");
+  const symbol = input.value.trim().toUpperCase();
+
+  if (!symbol) { input.focus(); return; }
+
+  btn.disabled = true;
+  btn.textContent = "Queuing…";
+  showLog();
+
+  const ok = await triggerWorkflow(
+    { single_stock: symbol, cap: "all", trade: "all", min_score: "0" },
+    `Single: ${symbol}`
+  );
+
+  btn.disabled = false;
+  btn.textContent = ok ? "✓ Queued" : "Analyse →";
+  if (ok) setTimeout(() => { btn.textContent = "Analyse →"; }, 6000);
+}
+
+// ── Run log ────────────────────────────────────────────────────────────────────
+function showLog() {
+  document.getElementById("runLog").classList.add("visible");
+}
+
+function addLog(msg, type = "log") {
+  const log = document.getElementById("runLog");
+  const line = document.createElement("div");
+  line.className = `log-line ${type}`;
+  const ts = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  line.innerHTML = `<span style="color:var(--muted)">[${ts}]</span>  ${msg}`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+// ── History table ──────────────────────────────────────────────────────────────
+let history = JSON.parse(localStorage.getItem("run_history") || "[]");
+
+function addRunToHistory(label, inputs, run) {
+  const entry = {
+    ts: new Date().toLocaleString("en-IN"),
+    label,
+    params: inputs.single_stock
+      ? `${inputs.single_stock}`
+      : `${inputs.cap} / ${inputs.trade} / score≥${inputs.min_score}`,
+    status: "queued",
+    url: run.html_url,
+    runNum: run.run_number,
+  };
+  history.unshift(entry);
+  if (history.length > 20) history.pop();
+  localStorage.setItem("run_history", JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  const tbody = document.getElementById("historyBody");
+  if (!history.length) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-history">No runs yet. Trigger a screener above.</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = history.map(h => `
+    <tr>
+      <td>${h.ts}</td>
+      <td>${h.label}</td>
+      <td style="font-family:var(--mono);font-size:0.72rem;">${h.params}</td>
+      <td><span class="status-pill run">queued</span></td>
+      <td><a href="${h.url}" target="_blank" style="color:var(--accent2);font-family:var(--mono);font-size:0.72rem;">#${h.runNum}</a></td>
+    </tr>
+  `).join("");
+}
+
+// ── Market status ──────────────────────────────────────────────────────────────
+function updateMarketStatus() {
+  const el = document.getElementById("marketStatus");
+  const now = new Date();
+  // IST offset
+  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const h = ist.getHours(); const m = ist.getMinutes(); const d = ist.getDay();
+  const mins = h * 60 + m;
+  const isWeekday = d >= 1 && d <= 5;
+  const isOpen    = isWeekday && mins >= 555 && mins < 930; // 9:15 – 15:30
+
+  const timeStr = ist.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) + " IST";
+
+  if (isOpen) {
+    el.textContent = `NSE Open • ${timeStr}`;
+    el.style.color = "var(--green)";
+    el.style.borderColor = "#166534";
+  } else {
+    el.textContent = `NSE Closed • ${timeStr}`;
+    el.style.color = "var(--muted)";
+    el.style.borderColor = "var(--border2)";
+  }
+}
+
+// ── Keyboard shortcut: Enter on stock input ────────────────────────────────────
+document.getElementById("stockSymbol")?.addEventListener("keydown", e => {
+  if (e.key === "Enter") runSingleStock();
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+(function init() {
+  const cfg = getConfig();
+  if (cfg.user)  document.getElementById("ghUser").value  = cfg.user;
+  if (cfg.repo)  document.getElementById("ghRepo").value  = cfg.repo;
+  if (cfg.token) {
+    document.getElementById("ghToken").value = cfg.token;
+    verifyToken(cfg.user, cfg.repo, cfg.token);
+  }
+
+  // Popular stocks quick links
+  const wrap = document.getElementById("quickStocks");
+  POPULAR_STOCKS.forEach(sym => {
+    const s = document.createElement("span");
+    s.className = "quick-stock";
+    s.textContent = sym;
+    s.onclick = () => {
+      document.getElementById("stockSymbol").value = sym;
+      document.getElementById("stockSymbol").focus();
+    };
+    wrap.appendChild(s);
+  });
+
+  updateMarketStatus();
+  setInterval(updateMarketStatus, 30000);
+  renderHistory();
+})();
+</script>
 </body>
 </html>
